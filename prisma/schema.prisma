@@ -1,0 +1,517 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  FOUNDER
+  PROJECT_MANAGER
+  PROJECT_OWNER
+  DOCUMENTATION_OWNER
+  TEAM_MEMBER
+  NEW_EMPLOYEE
+}
+
+enum ProjectStatus {
+  PLANNING
+  MVP
+  IN_PROGRESS
+  TESTING
+  LIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum TaskStatus {
+  BACKLOG
+  NOT_STARTED
+  IN_PROGRESS
+  BLOCKED
+  WAITING_FOR_REVIEW
+  NEEDS_CHANGES
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskPriority {
+  URGENT
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum DailyUpdateStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  BLOCKED
+  WAITING_FOR_REVIEW
+  COMPLETED
+}
+
+enum ManagerReviewStatus {
+  NOT_REVIEWED
+  REVIEWED
+  NEEDS_CLARIFICATION
+  ACTION_REQUIRED
+}
+
+enum BlockerStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_SOMEONE
+  RESOLVED
+  CLOSED
+}
+
+enum EscalationLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum FeatureStatus {
+  PLANNED
+  IN_PROGRESS
+  TESTING
+  LIVE
+  DEPRECATED
+  BLOCKED
+}
+
+enum RoadmapStatus {
+  NOT_STARTED
+  PLANNED
+  IN_PROGRESS
+  BLOCKED
+  COMPLETED
+  CANCELLED
+}
+
+enum IssueStatus {
+  OPEN
+  IN_PROGRESS
+  FIXED
+  MONITORING
+  CLOSED
+  WONT_FIX
+}
+
+enum ChangeType {
+  NEW_FEATURE
+  BUG_FIX
+  IMPROVEMENT
+  DOCUMENTATION
+  SECURITY
+  AI_PROMPT_CHANGE
+  AI_MODEL_CHANGE
+  DATABASE_CHANGE
+  UI_CHANGE
+  DEPLOYMENT_CHANGE
+  PROCESS_CHANGE
+}
+
+enum SectionStatus {
+  COMPLETE
+  NEEDS_UPDATE
+  MISSING
+  UNDER_REVIEW
+}
+
+enum OnboardingStage {
+  DAY_1
+  DAY_3
+  DAY_7
+  DAY_30
+  COMPLETED
+}
+
+enum HandoverApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id              String   @id @default(cuid())
+  fullName        String
+  email           String   @unique
+  passwordHash    String
+  role            Role     @default(TEAM_MEMBER)
+  department      String?
+  status          String   @default("active")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  ownedProjects         Project[]         @relation("ProjectOwner")
+  docOwnedProjects      Project[]         @relation("DocOwner")
+  assignedTasks         ProjectTask[]     @relation("AssignedTasks")
+  createdTasks          ProjectTask[]     @relation("CreatedTasks")
+  dailyUpdates          DailyWorkUpdate[]
+  blockerReports        BlockerLog[]      @relation("BlockerReporter")
+  decisions             Decision[]        @relation("DecisionOwner")
+  approvedDecisions     Decision[]        @relation("DecisionApprover")
+  featureOwners         Feature[]         @relation("FeatureOwner")
+  roadmapOwners         RoadmapItem[]     @relation("RoadmapOwner")
+  issueOwners           Issue[]           @relation("IssueOwner")
+  issueReporters        Issue[]           @relation("IssueReporter")
+  changeLogEntries      ChangeLog[]       @relation("ChangeLogAuthor")
+  onboardingEmp         OnboardingRecord[] @relation("OnboardedEmployee")
+  handoverBy            HandoverRecord[]  @relation("HandoverBy")
+  replacement           HandoverRecord[]  @relation("HandoverReplacement")
+  managerReviews        ManagerReview[]   @relation("UserManagerReviews")
+  notifications         Notification[]
+  auditLogs             AuditLog[]
+  buddyOnboardings      OnboardingRecord[] @relation("OnboardingBuddy")
+  employeeEntries       EmployeeEntry[]   @relation("EmployeeEntries")
+  reviewedSops          SopReview[]       @relation("SopReviewer")
+}
+
+model Project {
+  id                  String         @id @default(cuid())
+  projectName         String
+  summary             String?
+  problemStatement    String?
+  targetUsers         String?
+  projectOwner        String?
+  documentationOwner  String?
+  currentStage        String         @default("Planning")
+  startDate           DateTime?
+  lastUpdated         DateTime?      @default(now())
+  status              ProjectStatus  @default(PLANNING)
+  sopHealthScore      Float          @default(0)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  projectOwnerUser    User?          @relation("ProjectOwner", fields: [projectOwner], references: [id])
+  docOwnerUser        User?          @relation("DocOwner", fields: [documentationOwner], references: [id])
+
+  sections            ProjectSection[]
+  dailyUpdates        DailyWorkUpdate[]
+  tasks               ProjectTask[]
+  blockers            BlockerLog[]
+  features            Feature[]
+  roadmapItems        RoadmapItem[]
+  issues              Issue[]
+  decisions           Decision[]
+  changeLogs          ChangeLog[]
+  onboardingRecords   OnboardingRecord[]
+  handoverRecords     HandoverRecord[]
+  managerReviews      ManagerReview[]
+  employeeEntries     EmployeeEntry[]
+  sopReviews          SopReview[]
+}
+
+model ProjectSection {
+  id                String        @id @default(cuid())
+  projectId         String
+  projectName       String
+  sectionName       String
+  purpose           String?
+  owner             String?
+  status            SectionStatus @default(MISSING)
+  missingInfoFlag   Boolean       @default(false)
+  lastUpdated       DateTime?     @default(now())
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  project           Project       @relation(fields: [projectId], references: [id])
+}
+
+model DailyWorkUpdate {
+  id                    String              @id @default(cuid())
+  projectId             String
+  project               Project             @relation(fields: [projectId], references: [id])
+  employeeId            String
+  employeeIdUser        User                @relation(fields: [employeeId], references: [id])
+  employeeRole          String
+  date                  DateTime
+  todayWorkedOn         String
+  progressMade          String?
+  currentStatus         DailyUpdateStatus   @default(NOT_STARTED)
+  blockers              String?
+  helpNeeded            String?
+  nextStep              String?
+  relatedFeatureId      String?
+  relatedIssueId        String?
+  relatedTaskId         String?
+  timeSpent             String?
+  managerComment        String?
+  managerReviewStatus   ManagerReviewStatus @default(NOT_REVIEWED)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  @@unique([employeeId, date])
+}
+
+model EmployeeEntry {
+  id                 String         @id @default(cuid())
+  projectId          String
+  project            Project        @relation(fields: [projectId], references: [id])
+  employeeId         String
+  employeeIdUser     User           @relation("EmployeeEntries", fields: [employeeId], references: [id])
+  employeeName       String
+  role               String
+  todayWork          String?
+  progress           String?
+  status             String         @default("In Progress")
+  nextStep           String?
+  managerComment     String?
+  lastUpdated        DateTime?      @default(now())
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@unique([projectId, employeeId])
+}
+
+model ProjectTask {
+  id               String        @id @default(cuid())
+  projectId        String
+  project          Project       @relation(fields: [projectId], references: [id])
+  taskTitle        String
+  taskDescription  String?
+  assignedTo       String
+  assignedToUser   User          @relation("AssignedTasks", fields: [assignedTo], references: [id])
+  createdBy        String
+  createdByUser    User          @relation("CreatedTasks", fields: [createdBy], references: [id])
+  priority         TaskPriority  @default(MEDIUM)
+  status           TaskStatus    @default(BACKLOG)
+  startDate        DateTime?
+  dueDate          DateTime?
+  completedDate    DateTime?
+  relatedFeatureId String?
+  relatedIssueId   String?
+  blockerReason    String?
+  managerNotes     String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+}
+
+model BlockerLog {
+  id                String          @id @default(cuid())
+  projectId         String
+  project           Project         @relation(fields: [projectId], references: [id])
+  relatedTaskId     String?
+  reportedBy        String
+  reportedByUser    User            @relation("BlockerReporter", fields: [reportedBy], references: [id])
+  reportedDate      DateTime        @default(now())
+  blockerDesc       String
+  impact            String?
+  personNeeded      String?
+  escalationLevel   EscalationLevel @default(LOW)
+  currentStatus     BlockerStatus   @default(OPEN)
+  resolutionPlan    String?
+  resolvedDate      DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+}
+
+model Feature {
+  id                 String        @id @default(cuid())
+  projectId          String
+  project            Project       @relation(fields: [projectId], references: [id])
+  featureName        String
+  description        String?
+  status             FeatureStatus @default(PLANNED)
+  priority           TaskPriority  @default(MEDIUM)
+  ownerId            String
+  ownerIdUser        User          @relation("FeatureOwner", fields: [ownerId], references: [id])
+  addedDate          DateTime      @default(now())
+  lastUpdated        DateTime      @default(now())
+  relatedIssueId     String?
+  relatedDecisionId  String?
+  notes              String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+}
+
+model RoadmapItem {
+  id            String        @id @default(cuid())
+  projectId     String
+  project       Project       @relation(fields: [projectId], references: [id])
+  title         String
+  description   String?
+  reasonNeeded  String?
+  priority      TaskPriority  @default(MEDIUM)
+  ownerId       String
+  ownerIdUser   User          @relation("RoadmapOwner", fields: [ownerId], references: [id])
+  targetDate    DateTime?
+  status        RoadmapStatus @default(NOT_STARTED)
+  dependencies  String?
+  risks         String?
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model Issue {
+  id                   String      @id @default(cuid())
+  projectId            String
+  project              Project     @relation(fields: [projectId], references: [id])
+  dateFound            DateTime
+  reportedBy           String
+  reportedByUser       User        @relation("IssueReporter", fields: [reportedBy], references: [id])
+  title                String
+  description          String?
+  impact               String?
+  rootCause            String?
+  fixApplied           String?
+  preventionMethod     String?
+  status               IssueStatus @default(OPEN)
+  ownerId              String
+  ownerIdUser          User        @relation("IssueOwner", fields: [ownerId], references: [id])
+  resolvedDate         DateTime?
+  relatedFeatureId     String?
+  relatedChangeLogId   String?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+}
+
+model Decision {
+  id                      String   @id @default(cuid())
+  projectId               String
+  project                 Project  @relation(fields: [projectId], references: [id])
+  decisionDate            DateTime
+  title                   String
+  description             String?
+  reason                  String
+  alternativesConsidered  String?
+  impact                  String?
+  decisionOwnerId         String
+  decisionOwnerIdUser     User     @relation("DecisionOwner", fields: [decisionOwnerId], references: [id])
+  approvedBy              String?
+  approvedByUser          User?    @relation("DecisionApprover", fields: [approvedBy], references: [id])
+  relatedFeatureId        String?
+  relatedIssueId          String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+}
+
+model ChangeLog {
+  id                   String      @id @default(cuid())
+  projectId            String
+  project              Project     @relation(fields: [projectId], references: [id])
+  date                 DateTime
+  changeType           ChangeType
+  title                String
+  whatChanged          String?
+  whyItChanged         String?
+  addedById            String
+  addedByIdUser        User        @relation("ChangeLogAuthor", fields: [addedById], references: [id])
+  impact               String?
+  relatedFeatureId     String?
+  relatedIssueId       String?
+  relatedPullRequest   String?
+  nextAction           String?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+}
+
+model OnboardingRecord {
+  id                String          @id @default(cuid())
+  employeeId        String
+  employeeIdUser    User            @relation("OnboardedEmployee", fields: [employeeId], references: [id])
+  projectId         String
+  project           Project         @relation(fields: [projectId], references: [id])
+  role              String
+  startDate         DateTime
+  onboardingBuddyId String?
+  onboardingBuddy   User?           @relation("OnboardingBuddy", fields: [onboardingBuddyId], references: [id])
+  managerId         String
+  currentStage      OnboardingStage @default(DAY_1)
+  completionPct     Int             @default(0)
+  employeeFeedback  String?
+  managerReview     String?
+  status            String          @default("In Progress")
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+}
+
+model HandoverRecord {
+  id                      String                  @id @default(cuid())
+  employeeId              String
+  employeeIdUser          User                    @relation("HandoverBy", fields: [employeeId], references: [id])
+  projectId               String
+  project                 Project                 @relation(fields: [projectId], references: [id])
+  role                    String
+  projectAreaOwned        String?
+  lastWorkingDate         DateTime?
+  completedWork           String?
+  pendingWork             String?
+  knownRisks              String?
+  importantLinks          String?
+  recommendedNextSteps    String?
+  replacementOwnerId      String
+  replacementOwner        User                    @relation("HandoverReplacement", fields: [replacementOwnerId], references: [id])
+  managerApprovalStatus   HandoverApprovalStatus  @default(PENDING)
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+}
+
+model ManagerReview {
+  id               String         @id @default(cuid())
+  projectId        String
+  project          Project        @relation(fields: [projectId], references: [id])
+  reviewedItemType String
+  reviewedItemId   String
+  reviewedBy       String
+  reviewDate       DateTime       @default(now())
+  reviewStatus     String         @default("Not Reviewed")
+  managerComment   String?
+  actionRequired   Boolean        @default(false)
+  assignedActionTo String?
+  dueDate          DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  managerReviewing User?          @relation("UserManagerReviews", fields: [reviewedBy], references: [id])
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  title       String
+  message     String
+  type        String
+  readStatus  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  action      String
+  entityType  String
+  entityId    String
+  oldValue    String?
+  newValue    String?
+  createdAt   DateTime @default(now())
+}
+
+model Setting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+}
+
+model SopReview {
+  id             String   @id @default(cuid())
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id])
+  reviewedBy     String
+  reviewDate     DateTime @default(now())
+  score          Float
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  reviewedByUser User?    @relation("SopReviewer", fields: [reviewedBy], references: [id])
+}
